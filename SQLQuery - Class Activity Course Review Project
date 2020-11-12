@@ -1,0 +1,173 @@
+--create DB
+CREATE DATABASE courseRevProj
+;
+USE courseRevProj
+;
+--import csv flat file
+SELECT * --1029 ROWS
+FROM gradeRec
+ORDER BY studentID ASC
+;
+--check for duplicate record/data
+SELECT DISTINCT * --1029 rows --no duplicates
+FROM gradeRec
+;
+SELECT DISTINCT studentID --1026 rows --1029 rows after UPDATE of duplicate studentID
+FROM gradeRec
+;
+SELECT studentID, COUNT(studentID) AS DUP --show duplicate studentID
+FROM gradeRec
+GROUP BY studentID
+HAVING COUNT(studentID) > 1
+ORDER BY studentID ASC
+;
+SELECT * --show data in duplicate studentID rows to further validate
+FROM gradeRec
+WHERE studentID IN (35932,47058,64698)
+ORDER BY studentID ASC
+;
+--need to update studentID to address duplicate issue, refer to update SQL
+SELECT DISTINCT studentID --1029 rows after UPDATE of duplicate studentID
+FROM gradeRec
+;
+SELECT *
+FROM gradeRec
+ORDER BY totalPoints ASC
+;
+--create studentInfo table
+SELECT studentID,firstName,lastName INTO studentInfo
+FROM gradeRec
+;
+--create studentScores table by 
+SELECT studentID,midtermExam INTO studentME
+FROM gradeRec
+;
+ALTER TABLE studentME
+ADD examID varchar(2) DEFAULT 'ME' NOT NULL
+;
+SELECT studentID,finalExam INTO studentFE
+FROM gradeRec
+;
+ALTER TABLE studentFE
+ADD examID varchar(2) DEFAULT 'FE' NOT NULL
+;
+SELECT studentID,assignment1 INTO studentAS1
+FROM gradeRec
+;
+ALTER TABLE studentAS1
+ADD examID varchar(2) DEFAULT 'A1' NOT NULL
+;
+SELECT studentID,assignment2 INTO studentAS2
+FROM gradeRec
+;
+ALTER TABLE studentAS2
+ADD examID varchar(2) DEFAULT 'A2' NOT NULL
+;
+SELECT *
+INTO studentScores
+FROM studentME
+UNION 
+SELECT *
+FROM studentFE
+UNION 
+SELECT *
+FROM studentAS1
+UNION 
+SELECT *
+FROM studentAS2
+;
+ALTER TABLE studentScores
+ADD scoreID int IDENTITY (10001,1)
+;
+EXEC sp_rename 'studentScores.midtermExam','score','COLUMN'
+;
+SELECT *
+FROM studentScores
+;
+--create gradeRange table
+CREATE TABLE gradeRange
+(	grID int NOT NULL,
+	gr varchar(2),
+	grRangeLo int,
+	grRangeHi int,
+	grRange int)
+;
+INSERT INTO gradeRange
+VALUES	(111,'A',382,372,10),
+		(112,'A-',361,371,10),
+		(121,'B+',350,360,10),
+		(122,'B',339,349,10),
+		(123,'B-',307,338,30),
+		(131,'C+',296,306,10),
+		(132,'C',285,295,10),
+		(133,'C-',274,284,10),
+		(141,'D+',263,273,10),
+		(142,'D',252,262,10),
+		(143,'D-',241,251,10),
+		(151,'F',160,240,80)
+;
+--1NF 2NF tables studentInfo, studentScores, gradeRange
+--3NF totalPoints and studentAverage are transitive dependencies of student scores in exam and assignment
+SELECT *
+FROM studentInfo
+;
+SELECT *
+FROM gradeRange
+;
+SELECT *
+FROM studentScores
+;
+--create derived table studentTotals where removed transitive dependencies could be retrieved
+SELECT studentID, ROUND(AVG(score),2) AS avgScore, (SUM(score)*100) AS totalScore
+INTO studentTotals
+FROM studentScores
+GROUP BY studentID
+ORDER BY studentID ASC
+;
+SELECT *
+FROM studentTotals
+ORDER BY studentID ASC
+;
+--add constraints as necessary, Primary Keys, Foreign Keys, etc
+ALTER TABLE studentInfo
+ADD PRIMARY KEY (studentID)
+;
+ALTER TABLE gradeRange
+ADD PRIMARY KEY (grID)
+;
+ALTER TABLE studentScores
+ADD PRIMARY KEY (scoreID)
+;
+ALTER TABLE studentTotals
+ADD totalID int IDENTITY (10001,1) PRIMARY KEY
+;
+ALTER TABLE studentScores
+ADD CONSTRAINT studentID FOREIGN KEY (studentID) 
+REFERENCES studentInfo(studentID)
+;
+--not working
+ALTER TABLE studentTotals
+ADD CONSTRAINT studentID FOREIGN KEY (studentID) 
+REFERENCES studentInfo(studentID)
+;
+--show relationship between tables
+SELECT	a.studentID,
+		a.firstName,
+		a.lastName,
+		b.avgScore,
+		b.totalScore,
+		c.gr
+FROM	studentInfo as a
+INNER JOIN (SELECT *
+FROM studentTotals) AS b
+ON a.studentID=b.studentID
+INNER JOIN (SELECT *
+FROM gradeRange) AS c
+ON b.totalscore BETWEEN grRangeLo AND grRangeHi
+ORDER BY studentID ASC
+;
+--master table
+SELECT *
+FROM gradeRec
+ORDER BY studentID ASC
+;
